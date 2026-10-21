@@ -104,7 +104,7 @@ def run(gw=None, refresh=False, budget=81.5, pick_team=True,
         raise ValueError(f'No fixtures found for gameweek {gw}')
 
     print('3b. Saving next 4 gameweeks FDR plots...')
-    save_fixture_plots(fixtures, teams, start_gw=gw, next_n=4, output_dir='plots')
+    save_fixture_plots(fixtures, teams, start_gw=gw, next_n=4, output_dir='fpl-web/public/fixtures')
 
     completed = completed_gameweeks(raw_fixtures, gw)
 
