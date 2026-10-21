@@ -157,14 +157,76 @@ def run(gw=None, refresh=False, budget=81.5, pick_team=True,
         from shap_explain import save_player_shap
         save_player_shap(predicted, ratings, models, gw, player_name=shap_player)
 
+
     if pick_team:
-        print('\n7. Selecting a starting XI...')
-        try:
-            xi = choose_xi(ratings, budget)
-            xi.to_csv(output / f'gw_{gw}_starting_xi.csv', index=False)
-            print_players_by_position(xi, 'SELECTED STARTING XI')
-        except ValueError as error:
-            print(f'Could not select a team: {error}')
+        print('\n7. Selecting starting XIs for the next 1-4 GWs...')
+
+        # Start with the current GW predictions.
+        all_ratings = [ratings]
+
+        # Predict the next 3 GWs using the same trained models.
+        for future_gw in range(gw + 1, min(gw + 4, 39)):
+            future_players = upcoming_players(
+                players, history, fixtures, future_gw
+            )
+
+            if future_players.empty:
+                continue
+
+            future_predictions = predict_matches(future_players, models)
+            future_ratings = make_player_ratings(
+                future_predictions, teams, future_gw
+            )
+
+            all_ratings.append(future_ratings)
+
+        combined = pd.concat(all_ratings, ignore_index=True)
+
+        # Optimize for 1, 2, 3 and 4 GWs.
+        for horizon in range(1, 5):
+            end_gw = gw + horizon - 1
+
+            period = combined[
+                combined["gameweek"].between(gw, end_gw)
+            ].copy()
+
+            # Include players with fixtures in any GW of the period.
+            candidates = (
+                period.sort_values("gameweek")
+                .drop_duplicates("id")
+                .copy()
+            )
+
+            total_points = period.groupby("id")["expected_points"].sum(
+                min_count=1
+            )
+
+            candidates["expected_points"] = candidates["id"].map(
+                total_points
+            )
+
+            try:
+                xi = choose_xi(candidates, budget)
+
+                xi.to_csv(
+                    output / f"optimal_xi_{horizon}gw.csv",
+                    index=False
+                )
+
+                if horizon == 1:
+                    xi.to_csv(
+                        output / f"gw_{gw}_starting_xi.csv",
+                        index=False
+                    )
+                    print_players_by_position(
+                        xi, 'SELECTED STARTING XI'
+                    )
+
+                print(f"Optimal XI for {horizon} GW(s) saved")
+
+            except ValueError as error:
+                print(f"Could not select {horizon} GW XI: {error}")
+
 
     print(f'Files saved in: {output.resolve()}')
     return ratings

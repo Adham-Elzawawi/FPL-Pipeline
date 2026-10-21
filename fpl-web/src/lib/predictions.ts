@@ -14,6 +14,28 @@ export type Player = {
   captain?: string;
 };
 
+
+export function getOptimalTeam(weeks: number): Player[] {
+  const file = path.join(
+    process.cwd(),
+    "..",
+    "outputs",
+    `optimal_xi_${weeks}gw.csv`
+  );
+
+  if (!fs.existsSync(file)) {
+    return [];
+  }
+
+  const csv = fs.readFileSync(file, "utf8");
+
+  return parse(csv, {
+    columns: true,
+    skip_empty_lines: true,
+  });
+}
+
+
 export function getPlayers(type: "player_ratings" | "starting_xi"): Player[] {
   const folder = path.join(process.cwd(), "..", "outputs");
 
