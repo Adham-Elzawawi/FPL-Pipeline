@@ -1,0 +1,7 @@
+numpy
+pandas
+scipy
+requests
+xgboost>=2.0
+matplotlib
+shap
