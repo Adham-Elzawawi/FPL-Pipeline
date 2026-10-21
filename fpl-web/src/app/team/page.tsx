@@ -1,45 +1,34 @@
 
 import { getPlayers } from "@/lib/predictions";
-
+import FootballPitch from "@/components/team/FootballPitch";
+import TeamStats from "@/components/team/TeamStats";
 
 export default function TeamPage() {
-  const team = getPlayers("starting_xi");
+  const players = getPlayers("starting_xi");
 
-  const total = team.reduce(
-    (sum, player) => sum + Number(player.expected_points), 0
-  );
-
-  const captain = team.find((player) => player.captain === "C");
-  const totalPoints = total + Number(captain?.expected_points || 0);
+  if (players.length === 0) {
+    return <p>No team found. Run your Python predictor first.</p>;
+  }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-3">Optimal Starting XI</h1>
+    <div className="max-w-4xl mx-auto">
 
-      <p className="text-green-400 text-xl mb-8">
-        Predicted points: {totalPoints.toFixed(2)}
+      <h1 className="text-3xl font-bold mb-2">
+        Optimal XI
+      </h1>
+
+      <p className="text-slate-400 mb-6">
+        Your highest predicted scoring team
       </p>
 
-      {team.length === 0 && <p>No optimized team yet. Run main.py first.</p>}
+      <TeamStats players={players} />
 
-      <div className="grid gap-3">
-        {team.map((player) => (
-          <div key={player.id} className="bg-slate-900 p-4 rounded-lg flex justify-between">
-            <div>
-              <p className="font-bold">
-                {player.web_name} {player.captain && `(${player.captain})`}
-              </p>
-              <p className="text-slate-400 text-sm">
-                {player.position} · {player.team_name} · £{player.price_m}m
-              </p>
-            </div>
+      <FootballPitch players={players} />
 
-            <p className="text-green-400 font-semibold">
-              {player.expected_points} xPts
-            </p>
-          </div>
-        ))}
-      </div>
+      <p className="text-slate-400 text-sm text-center mt-4">
+        C = Captain (2x points) · VC = Vice-Captain
+      </p>
+
     </div>
   );
 }

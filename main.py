@@ -139,6 +139,16 @@ def run(gw=None, refresh=False, budget=81.5, pick_team=True,
 
     output = Path('outputs')
     output.mkdir(exist_ok=True)
+    next_four = fixtures[fixtures["round"].between(gw, gw + 3)].copy()
+
+    team_names = teams.set_index("id")["name"]
+    short_names = teams.set_index("id")["short_name"]
+
+    next_four["team_name"] = next_four["team"].map(team_names)
+    next_four["opponent_name"] = next_four["opponent_team"].map(short_names)
+
+    next_four.to_csv(output / "next_4_fixtures.csv", index=False)
+    
     ratings.to_csv(output / f'gw_{gw}_player_ratings.csv', index=False)
     fixtures[fixtures['round'] == gw].to_csv(output / f'gw_{gw}_fixtures.csv', index=False)
     print_players_by_position(ratings.head(10), 'TOP 10 PREDICTED PLAYERS')
