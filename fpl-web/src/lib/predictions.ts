@@ -14,6 +14,8 @@ export type Player = {
   captain?: string;
 };
 
+type PredictionType = "player_ratings" | "starting_xi";
+
 
 export function getOptimalTeam(weeks: number): Player[] {
   const file = path.join(
@@ -36,21 +38,38 @@ export function getOptimalTeam(weeks: number): Player[] {
 }
 
 
-export function getPlayers(type: "player_ratings" | "starting_xi"): Player[] {
+
+
+export function getAvailableGameweeks(type: PredictionType): number[] {
   const folder = path.join(process.cwd(), "..", "outputs");
 
   if (!fs.existsSync(folder)) return [];
 
-  const files = fs.readdirSync(folder)
-    .filter((file) => file.match(new RegExp(`^gw_\\d+_${type}\\.csv$`)))
-    .sort((a, b) => Number(b.split("_")[1]) - Number(a.split("_")[1]));
+  const regex = new RegExp(`^gw_(\\d+)_${type}\\.csv$`);
 
-  if (files.length === 0) return [];
+  return fs.readdirSync(folder)
+    .map((file) => file.match(regex))
+    .filter((match): match is RegExpMatchArray => match !== null)
+    .map((match) => Number(match[1]))
+    .sort((a, b) => a - b);
+}
 
-  const csv = fs.readFileSync(path.join(folder, files[0]), "utf8");
+export function getPlayers(type: PredictionType, gw?: number): Player[] {
+  const folder = path.join(process.cwd(), "..", "outputs");
+
+  const selectedGw = gw ?? getAvailableGameweeks(type)[0];
+
+  if (selectedGw === undefined) return [];
+
+  const file = path.join(folder, `gw_${selectedGw}_${type}.csv`);
+
+  if (!fs.existsSync(file)) return [];
+
+  const csv = fs.readFileSync(file, "utf8");
 
   return parse(csv, {
     columns: true,
     skip_empty_lines: true,
   });
 }
+

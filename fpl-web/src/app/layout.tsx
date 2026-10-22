@@ -14,7 +14,6 @@ export default function RootLayout({
           <Link href="/" className="font-bold text-green-400">
             FPL Predictor
           </Link>
-          <Link href="/">Dashboard</Link>
           <Link href="/players">Players</Link>
           <Link href="/team">Best XI</Link>
           <Link href="/fixtures">Fixtures</Link>
