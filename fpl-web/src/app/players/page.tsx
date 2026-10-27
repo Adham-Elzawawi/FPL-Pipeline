@@ -7,7 +7,6 @@ import {
 
 import PlayersTable from "@/components/players/PlayersTable";
 
-export const dynamic = "force-dynamic";
 
 export default function PlayersPage() {
   const nextGw = getCurrentGameweek();
