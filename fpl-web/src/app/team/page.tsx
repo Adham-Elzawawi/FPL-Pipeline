@@ -2,6 +2,8 @@
 import { getOptimalTeam } from "@/lib/predictions";
 import TeamHorizon from "@/components/team/TeamHorizon";
 
+export const dynamic = "force-dynamic";
+
 export default function TeamPage() {
   const teams = [1, 2, 3, 4].map((weeks) =>
     getOptimalTeam(weeks)

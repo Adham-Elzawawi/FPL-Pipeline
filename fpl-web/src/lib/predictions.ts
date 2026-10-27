@@ -40,6 +40,22 @@ export function getOptimalTeam(weeks: number): Player[] {
 
 
 
+export function getCurrentGameweek(): number | undefined {
+  const file = path.join(process.cwd(), "..", "outputs", "current_prediction.json");
+  if (fs.existsSync(file)) {
+    try {
+      const info = JSON.parse(fs.readFileSync(file, "utf8"));
+      const gw = Number(info.gameweek);
+      if (Number.isInteger(gw) && gw >= 1 && gw <= 38) {
+        return gw;
+      }
+    } catch {
+      // Fall back to the CSV files if the manifest is missing or damaged.
+    }
+  }
+  return getAvailableGameweeks("player_ratings")[0];
+}
+
 export function getAvailableGameweeks(type: PredictionType): number[] {
   const folder = path.join(process.cwd(), "..", "outputs");
 
@@ -57,7 +73,7 @@ export function getAvailableGameweeks(type: PredictionType): number[] {
 export function getPlayers(type: PredictionType, gw?: number): Player[] {
   const folder = path.join(process.cwd(), "..", "outputs");
 
-  const selectedGw = gw ?? getAvailableGameweeks(type)[0];
+  const selectedGw = gw ?? getCurrentGameweek();
 
   if (selectedGw === undefined) return [];
 

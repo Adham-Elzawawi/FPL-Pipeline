@@ -1,15 +1,16 @@
 
 import {
   getPlayers,
-  getAvailableGameweeks,
+  getCurrentGameweek,
   type Player,
 } from "@/lib/predictions";
 
 import PlayersTable from "@/components/players/PlayersTable";
 
+export const dynamic = "force-dynamic";
+
 export default function PlayersPage() {
-  const available = getAvailableGameweeks("player_ratings");
-  const nextGw = available[0];
+  const nextGw = getCurrentGameweek();
 
   const gameweeks = nextGw === undefined
     ? []
