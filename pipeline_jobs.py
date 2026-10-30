@@ -25,6 +25,7 @@ from team_features import add_team_features, build_team_history
 from team_selection import choose_xi
 from understat_data import get_understat_matches
 from plot_fixtures import save_fixture_plots
+from shap_payload import save_shap_inputs
 
 
 SNAPSHOT_DIR = Path('data/runtime')
@@ -101,12 +102,13 @@ def read_snapshot():
     return json.loads(filename.read_text(encoding='utf-8'))
 
 
-def update_gw_job(bootstrap=None, raw_fixtures=None, completed=None):
+def update_gw_job(bootstrap=None, raw_fixtures=None, completed=None, on_progress=None):
     """Expensive work: rebuild the feature snapshot and update XGBoost.
 
     Call only at initialization or after another official GW was completed.
     """
     print('\n=== Updating trained models and team strengths ===', flush=True)
+    progress = on_progress or (lambda message: None)
     if bootstrap is None:
         bootstrap = get_bootstrap(refresh=True)
     if raw_fixtures is None:
@@ -124,11 +126,13 @@ def update_gw_job(bootstrap=None, raw_fixtures=None, completed=None):
     players = get_players(bootstrap, gw)
     games = _only_confirmed_results(raw_fixtures, completed)
 
+    progress('Loading saved models and historical data')
     # Load previous-season models once; later GW updates use their checkpoint.
     previous_models, old_strengths = train_previous_once(
         season - 1, previous_season_training, refresh=False,
         model_folder=MODELS_DIR,
     )
+    progress('Updating team strengths and fixture difficulty')
     base_strengths = starting_from_previous(old_strengths, teams)
     current_strengths = _updated_strengths(games, base_strengths, set(completed))
 
@@ -139,6 +143,7 @@ def update_gw_job(bootstrap=None, raw_fixtures=None, completed=None):
         games, teams, season, refresh=bool(completed)
     )
 
+    progress('Building player and team training features')
     if completed:
         team_history = build_team_history(games, understat_teams)
         fixtures = add_team_features(fixtures, team_history, set(completed))
@@ -154,11 +159,13 @@ def update_gw_job(bootstrap=None, raw_fixtures=None, completed=None):
         current_training = pd.DataFrame(columns=['round', 'element_type',
                                                  'points'])
 
+    progress('Training the updated xP models')
     # No other job calls train_current_incrementally.
     train_current_incrementally(
         previous_models, current_training, completed, season, season - 1,
         model_folder=MODELS_DIR,
     )
+    progress('Saving models and strengths')
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     _save_pickle(current_strengths, SNAPSHOT_DIR / 'current_strengths.pkl.gz')
     _save_pickle(team_history, SNAPSHOT_DIR / 'team_history.pkl.gz')
@@ -246,9 +253,12 @@ def refresh_cp_job(bootstrap=None, raw_fixtures=None, budget=81.5):
             print(f'GW{future_gw} has no fixtures; xPts will be zero.')
             points = pd.DataFrame({'id': players['id'],
                                    f'gw_{future_gw}_points': 0.0})
+            # Keep an empty SHAP input file for a blank gameweek.
+            save_shap_inputs(upcoming, future_gw)
             ratings_by_gw.append((future_gw, None, points))
             continue
         predicted = predict_matches(upcoming, models)
+        save_shap_inputs(predicted, future_gw)
         ratings = make_player_ratings(predicted, teams, future_gw)
         _save_csv(ratings, OUTPUT_DIR / f'gw_{future_gw}_player_ratings.csv')
         points = ratings[['id', 'expected_points']].rename(columns={

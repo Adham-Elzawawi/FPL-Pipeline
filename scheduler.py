@@ -15,6 +15,7 @@ from job_state import last_success, mark_success, open_db
 from pipeline_jobs import (confirmed_gameweeks, read_snapshot, refresh_cp_job,
                            season_year, update_gw_job)
 from user_jobs import optimize_all_users
+from pipeline_status import set_pipeline_status
 
 
 def next_deadline(bootstrap, now):
@@ -52,42 +53,53 @@ def run_scheduler(force_cp=False):
             print('Another scheduler run is still in progress. Skipping.')
             return
 
-        now = datetime.now(timezone.utc)
-        bootstrap = get_bootstrap(refresh=True)
-        raw_fixtures = pd.DataFrame(get_fixtures(refresh=True))
-        completed = confirmed_gameweeks(bootstrap, raw_fixtures)
-        season = season_year(bootstrap)
-        snapshot = read_snapshot()
-        last_gw = max(completed, default=0)
-        must_update = (snapshot is None or snapshot['season'] != season
-                       or int(snapshot['last_gw']) < last_gw)
+        set_pipeline_status('checking', 'Checking the latest FPL gameweek data')
+        try:
+            now = datetime.now(timezone.utc)
+            bootstrap = get_bootstrap(refresh=True)
+            raw_fixtures = pd.DataFrame(get_fixtures(refresh=True))
+            completed = confirmed_gameweeks(bootstrap, raw_fixtures)
+            season = season_year(bootstrap)
+            snapshot = read_snapshot()
+            last_gw = max(completed, default=0)
+            must_update = (snapshot is None or snapshot['season'] != season
+                           or int(snapshot['last_gw']) < last_gw)
 
-        with open_db() as db:
-            if must_update:
-                print(f'GW update due. Official data through GW{last_gw}.')
-                update_gw_job(bootstrap, raw_fixtures, completed)
-            else:
-                print(f'GW model is up to date through GW{last_gw}.')
+            with open_db() as db:
+                if must_update:
+                    print(f'GW update due. Official data through GW{last_gw}.')
+                    set_pipeline_status('training', 'Preparing the xP model and team strengths')
+                    update_gw_job(
+                        bootstrap, raw_fixtures, completed,
+                        on_progress=lambda message: set_pipeline_status('training', message),
+                    )
+                else:
+                    print(f'GW model is up to date through GW{last_gw}.')
 
-            # A model update immediately refreshes predictions, even if the
-            # most recent daily CP run was only an hour ago.
-            # A newly entered GW should also get predictions straight away.
-            from fixtures import next_gameweek
-            if next_deadline(bootstrap, now) is None:
-                cp_due = False
-            else:
-                current_gw = next_gameweek(bootstrap['events'])
-                needed = Path(f'outputs/gw_{current_gw}_player_ratings.csv')
-                cp_due = (must_update or force_cp or not needed.exists()
-                          or due_for_cp(db, bootstrap, now))
-            if cp_due:
-                prediction_path = refresh_cp_job(bootstrap, raw_fixtures)
-                if prediction_path is not None:
-                    # Mark global CP as successful only after it has produced data.
-                    mark_success(db, 'cp')
-                    optimize_all_users(prediction_path)
-            else:
-                print('CP refresh not due yet.')
+                # GW updates immediately refresh predictions. Otherwise refresh
+                # only when the daily/hourly schedule says it is due.
+                from fixtures import next_gameweek
+                if next_deadline(bootstrap, now) is None:
+                    cp_due = False
+                else:
+                    current_gw = next_gameweek(bootstrap['events'])
+                    needed = Path(f'outputs/gw_{current_gw}_player_ratings.csv')
+                    cp_due = (must_update or force_cp or not needed.exists()
+                              or not Path('outputs/current_prediction.json').exists()
+                              or due_for_cp(db, bootstrap, now))
+                if cp_due:
+                    set_pipeline_status('predicting', 'Refreshing predictions and team recommendations')
+                    prediction_path = refresh_cp_job(bootstrap, raw_fixtures)
+                    if prediction_path is not None:
+                        mark_success(db, 'cp')
+                        optimize_all_users(prediction_path)
+                else:
+                    print('CP refresh not due yet.')
+
+            set_pipeline_status('ready', 'Predictions are up to date')
+        except Exception as error:
+            set_pipeline_status('error', str(error))
+            raise
 
 
 if __name__ == '__main__':

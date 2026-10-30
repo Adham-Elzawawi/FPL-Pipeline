@@ -4,6 +4,7 @@ from pathlib import Path
 from job_state import (add_user, last_success, manager_ids, mark_success,
                        open_db)
 from manager_advisor import run as optimize_manager
+from manager_advice import save_manager_advice
 
 
 def latest_predictions():
@@ -26,6 +27,7 @@ def optimize_user(manager_id, predictions=None):
         predictions = latest_predictions()
     print(f'\nOptimizing manager {manager_id} with {predictions}', flush=True)
     result = optimize_manager(int(manager_id), predictions=predictions)
+    save_manager_advice(int(manager_id), result)
     with open_db() as db:
         mark_success(db, f'user:{manager_id}')
     return result
@@ -35,9 +37,11 @@ def register_and_optimize(manager_id):
     """Call this from your signup handler after you know their FPL ID."""
     if int(manager_id) <= 0:
         raise ValueError('Manager ID must be positive')
+    result = optimize_user(int(manager_id))
+    # Only register after a valid public manager squad was optimized.
     with open_db() as db:
         add_user(db, int(manager_id))
-    return optimize_user(int(manager_id))
+    return result
 
 
 def optimize_all_users(predictions):
