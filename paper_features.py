@@ -1,4 +1,7 @@
-"""The features we use. Always average the last 5 fixtures."""
+"""Feature names for the player and team prediction models."""
+
+WINDOWS = (3, 5, 8, 10)
+# Keep the old name in case another script still imports it.
 WINDOW = 5
 
 PLAYER_COMMON = [
@@ -20,11 +23,11 @@ TEAM_METRICS = [
 
 def player_features(position):
     names = PLAYER_COMMON + (GK_EXTRA if position == 1 else OUTFIELD_EXTRA)
-    return [f'player_{name}_{WINDOW}' for name in names]
+    return [f'player_{name}_{window}' for window in WINDOWS for name in names]
 
 
 def side_features(side):
-    return [f'{side}_{name}_{WINDOW}' for name in TEAM_METRICS]
+    return [f'{side}_{name}_{window}' for window in WINDOWS for name in TEAM_METRICS]
 
 
 def features_for_position(position):

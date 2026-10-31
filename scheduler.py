@@ -16,6 +16,7 @@ from pipeline_jobs import (confirmed_gameweeks, read_snapshot, refresh_cp_job,
                            season_year, update_gw_job)
 from user_jobs import optimize_all_users
 from pipeline_status import set_pipeline_status
+from model_cache import checkpoint_matches_features
 
 
 def next_deadline(bootstrap, now):
@@ -62,8 +63,15 @@ def run_scheduler(force_cp=False):
             season = season_year(bootstrap)
             snapshot = read_snapshot()
             last_gw = max(completed, default=0)
+            previous_ok = checkpoint_matches_features(
+                Path('data/models') / f'previous_{season - 1}'
+            )
+            current_ok = checkpoint_matches_features(
+                Path('data/models') / f'current_{season}'
+            )
             must_update = (snapshot is None or snapshot['season'] != season
-                           or int(snapshot['last_gw']) < last_gw)
+                           or int(snapshot['last_gw']) < last_gw
+                           or not previous_ok or not current_ok)
 
             with open_db() as db:
                 if must_update:

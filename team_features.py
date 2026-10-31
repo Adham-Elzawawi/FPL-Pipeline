@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
-from paper_features import TEAM_METRICS, WINDOW
+from paper_features import TEAM_METRICS, WINDOWS
 
 
 def build_team_history(raw_fixtures, understat_teams):
@@ -39,7 +39,7 @@ def build_team_history(raw_fixtures, understat_teams):
 
 
 def add_team_features(fixtures, team_history, completed_gws):
-    """Average the last 5 matches for each team and opponent."""
+    """Build 3, 5, 8 and 10-match team averages for each fixture."""
     history = team_history.sort_values(['round', 'kickoff_time', 'fixture'])
     played = defaultdict(list)
     results = []
@@ -51,12 +51,13 @@ def add_team_features(fixtures, team_history, completed_gws):
             for club in week[column].dropna().unique():
                 previous = played[int(club)]
                 stats = {}
-                for name in TEAM_METRICS:
-                    values = [item[name] for item in previous[-WINDOW:]]
-                    valid = [v for v in values if pd.notna(v)]
-                    stats[f'{side}_{name}_{WINDOW}'] = (
-                        float(np.mean(valid)) if valid else np.nan
-                    )
+                for window in WINDOWS:
+                    for name in TEAM_METRICS:
+                        values = [item[name] for item in previous[-window:]]
+                        valid = [v for v in values if pd.notna(v)]
+                        stats[f'{side}_{name}_{window}'] = (
+                            float(np.mean(valid)) if valid else np.nan
+                        )
                 snapshots[int(club)] = stats
             if snapshots:
                 means = pd.DataFrame.from_dict(snapshots, orient='index')

@@ -1,11 +1,11 @@
-"""Get player stats and average the last 5 fixtures."""
+"""Get player stats and rolling averages from earlier fixtures."""
 import numpy as np
 import pandas as pd
 
 from api import get_player_history
 from fixtures import next_gameweek
 from pathlib import Path
-from paper_features import ALL_PLAYER_METRICS, WINDOW, FEATURES_MAP
+from paper_features import ALL_PLAYER_METRICS, WINDOWS, FEATURES_MAP
 from understat_data import attach_player_stats
 
 # Keep this for older code that imports FEATURES.
@@ -105,7 +105,7 @@ def _sorted(history):
 
 
 def add_past_averages(history):
-    """Use the last 5 fixtures, without using the game we predict."""
+    """Calculate 3, 5, 8 and 10-match averages without using the current GW."""
     games = _sorted(history)
     base = [stat for stat in ALL_PLAYER_METRICS if stat != 'relevant_points']
     for stat in base:
@@ -115,25 +115,30 @@ def add_past_averages(history):
 
     values_to_add = {}
     for stat in base:
-        shifted = games.groupby('id')[stat].shift(1)
-        name = f'player_{stat}_{WINDOW}'
-        values_to_add[name] = (shifted.groupby(games['id'])
-                               .rolling(WINDOW, min_periods=1).mean()
-                               .reset_index(level=0, drop=True))
+        previous = games.groupby('id')[stat].shift(1)
+        for window in WINDOWS:
+            name = f'player_{stat}_{window}'
+            values_to_add[name] = (previous.groupby(games['id'])
+                                   .rolling(window, min_periods=1).mean()
+                                   .reset_index(level=0, drop=True))
 
-    # Look at points from previous home/away games separately.
-    venue_keys = [games['id'], games['was_home']]
-    shifted_points = games.groupby(['id', 'was_home'])['points'].shift(1)
-    name = f'player_relevant_points_{WINDOW}'
-    values_to_add[name] = (shifted_points.groupby(venue_keys)
-                           .rolling(WINDOW, min_periods=1).mean()
-                           .reset_index(level=[0, 1], drop=True))
+    # Compare points from previous home or away games only.
+    previous_points = games.groupby(['id', 'was_home'])['points'].shift(1)
+    for window in WINDOWS:
+        name = f'player_relevant_points_{window}'
+        values_to_add[name] = (
+            previous_points.groupby([games['id'], games['was_home']])
+            .rolling(window, min_periods=1).mean()
+            .reset_index(level=[0, 1], drop=True)
+        )
 
     games = pd.concat([games, pd.DataFrame(values_to_add, index=games.index)], axis=1)
-    columns = [key for key in values_to_add if not key.startswith('player_relevant_points_')]
-    relevant = [key for key in values_to_add if key.startswith('player_relevant_points_')]
+    columns = [name for name in values_to_add
+               if not name.startswith('player_relevant_points_')]
+    relevant = [name for name in values_to_add
+                if name.startswith('player_relevant_points_')]
 
-    # Double GWs should use stats from before the GW started.
+    # All fixtures in a double GW must use stats from BEFORE the GW.
     first = games.drop_duplicates(['id', 'round'])[['id', 'round'] + columns]
     first_venue = games.drop_duplicates(['id', 'round', 'was_home'])[
         ['id', 'round', 'was_home'] + relevant

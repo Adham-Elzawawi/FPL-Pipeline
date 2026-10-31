@@ -1,8 +1,10 @@
 """Store last season's trained models so we only build them once."""
+import json
 from pathlib import Path
 
 import pandas as pd
 
+from paper_features import FEATURES_MAP
 from model import (train_previous_walk_forward, add_gameweek_trees,
                    save_model_checkpoint, load_model_checkpoint)
 from strengths import last_season_strengths, starting_strengths
@@ -12,17 +14,35 @@ from understat_data import team_name
 MODEL_FOLDER = Path('data/models')
 
 
+def checkpoint_matches_features(folder):
+    """Check whether a saved model uses our current feature columns."""
+    file = Path(folder) / 'metadata.json'
+    if not file.exists():
+        return False
+    try:
+        metadata = json.loads(file.read_text())
+    except (OSError, ValueError):
+        return False
+    expected = {str(position): features
+                for position, features in FEATURES_MAP.items()}
+    return metadata.get('version') == 1 and metadata.get('features') == expected
+
+
 def train_previous_once(year, load_previous_data, refresh=False,
                         rebuild=False, model_folder=MODEL_FOLDER):
     """Run previous season once. Next calls load the models from disk."""
     folder = Path(model_folder) / f'previous_{year}'
     stats_path = folder / 'team_strengths.csv'
 
-    if (folder / 'metadata.json').exists() and stats_path.exists() and not rebuild:
+    saved_ok = checkpoint_matches_features(folder)
+    if saved_ok and stats_path.exists() and not rebuild:
         print(f'Loading previous-season model from {folder}')
         models, _ = load_model_checkpoint(folder)
         strengths = pd.read_csv(stats_path)
         return models, strengths
+
+    if (folder / 'metadata.json').exists() and not saved_ok:
+        print('Old previous-season model uses different features. Rebuilding.')
 
     print(f'Preparing and training {year}/{year + 1} (one-time step)...')
     training, fixtures, teams = load_previous_data(year, refresh)
@@ -62,7 +82,8 @@ def train_current_incrementally(old_models, current_training, completed_gws,
     folder = Path(model_folder) / f'current_{season}'
     checkpoint = folder / 'metadata.json'
 
-    if checkpoint.exists() and not rebuild:
+    saved_ok = checkpoint_matches_features(folder)
+    if checkpoint.exists() and saved_ok and not rebuild:
         models, info = load_model_checkpoint(folder)
         if info['season'] != season or info['previous_season'] != previous_year:
             raise ValueError('Current-model checkpoint belongs to another season')
@@ -72,8 +93,11 @@ def train_current_incrementally(old_models, current_training, completed_gws,
                              'Run with --rebuild-models.')
         print(f'Loaded current-season checkpoint after GW{last_gw}')
     else:
+        if checkpoint.exists() and not saved_ok:
+            print('Old current-season model uses different features. Rebuilding.')
         models = old_models
         last_gw = 0
+        rebuild = True
 
     for gw in sorted(completed_gws):
         if gw <= last_gw:

@@ -1,0 +1,23 @@
+{
+  "budget": 100.0,
+  "complete": true,
+  "from_gw": 4,
+  "input_sha256": "b91e26c7b632c862b113dd20bfcda2faacf79b575dbdf7280fb2c028917e4a6e",
+  "jobs": 1,
+  "new_week_trees": 10,
+  "numpy": "2.5.4",
+  "old_week_trees": 10,
+  "optimizer_gap": 0.0,
+  "optimizer_time_limit": 45,
+  "pandas": "2.3.3",
+  "python": "3.13.9",
+  "scipy": "1.16.3",
+  "source_file_count": 2,
+  "source_hashes": {
+    "/Users/adhamelzawawi/Extra Work/FPL Pipeline/test/output/backtest_data_snapshot.pkl.gz": "ad0e01819a236a8d0238a2187b7362849e50b7f1dad05d0110a8f2ddc8807fc8",
+    "test/backtest.py": "5d0100c30fcf7bd57501100eceaa1590f695b0a24eff94737d31b6404683d5eb"
+  },
+  "start_trees": 30,
+  "to_gw": 8,
+  "xgboost": "3.2.0"
+}
